@@ -128,13 +128,13 @@ public class NewtonsCradle extends JFrame {
         String[] mats   = {"Plastic","Plasticine","Metal"};
         String[] angles = {"High (60°)","Medium (35°)"};
 
-        mat1Box  = combo(mats);
-        mat2Box  = combo(mats); mat2Box.setSelectedIndex(2); // default Metal for red
+        mat1Box  = combo(mats); // Plastic by default
+        mat2Box  = combo(mats); // Plastic by default
         angleBox = combo(angles);
 
-        // Mass spinners: 10g–1000g, step 10g, shown in grams for readability
-        SpinnerNumberModel sm1 = new SpinnerNumberModel(100, 10, 1000, 10);
-        SpinnerNumberModel sm2 = new SpinnerNumberModel(100, 10, 1000, 10);
+        // Mass spinners: 10g–1000g, step 5g, default 25g
+        SpinnerNumberModel sm1 = new SpinnerNumberModel(25, 10, 1000, 5);
+        SpinnerNumberModel sm2 = new SpinnerNumberModel(25, 10, 1000, 5);
         mass1Spin = new JSpinner(sm1);
         mass2Spin = new JSpinner(sm2);
         mass1Spin.setPreferredSize(new Dimension(72,22));
@@ -718,33 +718,29 @@ public class NewtonsCradle extends JFrame {
         }
 
         /** Format a value already divided by the scale for axis labels (compact) */
-        String fmtScaled(double v){
-            double a=Math.abs(v);
-            if(a<1e-12) return "0";
-            if(a<0.1)   return String.format("%.2f",v);
-            if(a<10)    return String.format("%.1f",v);
-            if(a<100)   return String.format("%.0f",v);
-            return String.format("%.0f",v);
+        /** Shared scientific notation formatter: always returns A.BB x10^N */
+        String sciStr(double v){
+            if(Math.abs(v)<1e-12) return "0";
+            int exp = (int)Math.floor(Math.log10(Math.abs(v)));
+            double mantissa = v / Math.pow(10, exp);
+            mantissa = Math.round(mantissa * 100.0) / 100.0;
+            if(Math.abs(mantissa) >= 9.995){ mantissa /= 10.0; exp++; }
+            return String.format("%.2f x10^%d", mantissa, exp);
         }
 
-        /** Format value in scientific notation: 1.50×10⁻² style */
+        /** Axis tick labels — scientific notation */
+        String fmtScaled(double v){
+            return sciStr(v);
+        }
+
+        /** Tooltip value — scientific notation with 3 sig figs */
         String fmtVal(double v){
             if(Math.abs(v)<1e-12) return "0";
             int exp = (int)Math.floor(Math.log10(Math.abs(v)));
             double mantissa = v / Math.pow(10, exp);
-            // superscript exponent using unicode
-            String expStr = expSuperscript(exp);
-            return String.format("%.2f×10%s", mantissa, expStr);
-        }
-
-        String expSuperscript(int exp){
-            // Build superscript string for exponent (handles negatives and multi-digit)
-            String[] sup = {"⁰","¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"};
-            StringBuilder sb = new StringBuilder();
-            if(exp<0){ sb.append("⁻"); exp=-exp; }
-            for(char c : Integer.toString(exp).toCharArray())
-                sb.append(sup[c-'0']);
-            return sb.toString();
+            mantissa = Math.round(mantissa * 1000.0) / 1000.0;
+            if(Math.abs(mantissa) >= 9.9995){ mantissa /= 10.0; exp++; }
+            return String.format("%.3f x10^%d", mantissa, exp);
         }
 
         void drawLine(Graphics2D g,List<Double> ts,List<Double> vs,
@@ -794,9 +790,9 @@ public class NewtonsCradle extends JFrame {
                     0,new float[]{4,3},0));
             g.drawLine(mx,top,mx,top+gh);
 
-            g.setFont(new Font("Arial",Font.BOLD,9));
+            g.setFont(new Font("Arial",Font.BOLD,12));
             FontMetrics fm=g.getFontMetrics();
-            int ty=top+14;
+            int ty=top+18;
 
             for(int s=0;s<2;s++){
                 boolean isRed=(s==0);
@@ -807,14 +803,12 @@ public class NewtonsCradle extends JFrame {
                 String label=s==0?"Red":"Blue";
                 if(ts2==null||vs==null||ts2.size()<2) continue;
 
-                // Interpolate: find the value at time t by binary-searching
                 double val=interpolate(ts2,vs,t);
 
-                // Compute the expected pixel Y for this value
                 int py=top+gh-(int)((val-vMin)/(vMax-vMin)*gh);
                 py=Math.max(top+2,Math.min(top+gh-2,py));
 
-                // Horizontal dashed line at the interpolated Y
+                // Horizontal dashed line
                 g.setColor(new Color(c.getRed(),c.getGreen(),c.getBlue(),70));
                 g.setStroke(new BasicStroke(0.8f,BasicStroke.CAP_BUTT,BasicStroke.JOIN_BEVEL,
                         0,new float[]{3,3},0));
@@ -822,19 +816,21 @@ public class NewtonsCradle extends JFrame {
 
                 // Dot on curve
                 g.setColor(c); g.setStroke(new BasicStroke(1f));
-                g.fillOval(mx-4,py-4,9,9);
+                g.fillOval(mx-5,py-5,11,11);
 
-                // Tooltip: show actual time and actual interpolated value
-                String tip=String.format("%s  t=%.3f  val=%s",label,t,fmtVal(val));
-                int bw=fm.stringWidth(tip)+8, bh=13;
-                int bx=mx+6; if(bx+bw>pad+gw) bx=mx-bw-4;
-                g.setColor(new Color(255,255,255,225));
-                g.fillRoundRect(bx,ty-10,bw,bh,4,4);
-                g.setColor(new Color(0x222222));
-                g.drawRoundRect(bx,ty-10,bw,bh,4,4);
+                // Tooltip
+                String tip=String.format("%s   t=%.3f   %s",label,t,fmtVal(val));
+                int bw=fm.stringWidth(tip)+14, bh=20;
+                int bx=mx+8; if(bx+bw>pad+gw) bx=mx-bw-6;
+                int by=ty-15;
+                g.setColor(new Color(255,255,255,235));
+                g.fillRoundRect(bx,by,bw,bh,6,6);
+                g.setColor(c);
+                g.setStroke(new BasicStroke(1.5f));
+                g.drawRoundRect(bx,by,bw,bh,6,6);
                 g.setColor(c.darker());
-                g.drawString(tip,bx+4,ty);
-                ty+=16;
+                g.drawString(tip,bx+7,ty);
+                ty+=22;
             }
         }
     }
