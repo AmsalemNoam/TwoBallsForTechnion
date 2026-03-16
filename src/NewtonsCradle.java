@@ -88,7 +88,7 @@ public class NewtonsCradle extends JFrame {
     // ── App state ─────────────────────────────────────────────────────────────
     CradleCanvas canvas;
     GraphPanel   velGraph, xGraph, yGraph, keGraph, peGraph;
-    JLabel       eLabel, radiusLabel1, radiusLabel2;
+    JLabel       radiusLabel1, radiusLabel2;
     JComboBox<String> mat1Box, mat2Box, angleBox;
     JSpinner     mass1Spin, mass2Spin;
     JButton      startBtn, resetBtn;
@@ -102,7 +102,7 @@ public class NewtonsCradle extends JFrame {
 
     // ─────────────────────────────────────────────────────────────────────────
     public NewtonsCradle() {
-        super("Newton's Cradle — Coefficient of Restitution");
+        super("Newton's Cradle Simulation");
         setDefaultCloseOperation(EXIT_ON_CLOSE);
         getContentPane().setBackground(Color.WHITE);
         setLayout(new BorderLayout(4,4));
@@ -178,17 +178,10 @@ public class NewtonsCradle extends JFrame {
         gc.gridx=5; ctrl.add(lbl("Angle:"),gc);
         gc.gridx=6; ctrl.add(angleBox,gc);
 
-        // Row 2: e label + buttons
-        eLabel = new JLabel("e = —");
-        eLabel.setFont(new Font("Arial",Font.BOLD,12));
-        eLabel.setForeground(new Color(0x222222));
-        gc.gridy=2; gc.gridx=0; gc.gridwidth=5; ctrl.add(eLabel,gc);
-        gc.gridwidth=1;
-
         startBtn = btn("▶  Play",  new Color(0x1565C0), Color.WHITE);
         resetBtn = btn("↺  Reset", new Color(0xB71C1C), Color.WHITE);
-        gc.gridx=5; gc.gridy=2; ctrl.add(startBtn,gc);
-        gc.gridx=6;             ctrl.add(resetBtn,gc);
+        gc.gridy=1; gc.gridx=7; ctrl.add(startBtn,gc);
+        gc.gridx=8;             ctrl.add(resetBtn,gc);
 
         startBtn.addActionListener(e -> toggleSim());
         resetBtn.addActionListener(e -> resetSim());
@@ -206,8 +199,8 @@ public class NewtonsCradle extends JFrame {
         velGraph = new GraphPanel("Speed (m/s)");
         xGraph   = new GraphPanel("Position X (m)");
         yGraph   = new GraphPanel("Height above rest (m)");
-        keGraph  = new GraphPanel("Kinetic Energy (J)");
-        peGraph  = new GraphPanel("Potential Energy (J)");
+        keGraph  = new GraphPanel("Kinetic Energy — KE (J)");
+        peGraph  = new GraphPanel("Potential Energy — PE (J)");
         gRow.add(velGraph); gRow.add(xGraph); gRow.add(yGraph);
         gRow.add(keGraph);  gRow.add(peGraph);
         gRow.setPreferredSize(new Dimension(1050, 210));
@@ -237,7 +230,6 @@ public class NewtonsCradle extends JFrame {
         p2.mass=mass2;  p2.radius=m2.radius(mass2);
 
         computedE = Math.sqrt(m1.e * m2.e);
-        updateELabel(m1, m2, mass1, mass2);
         updateRadiusLabel(radiusLabel1, m1, mass1);
         updateRadiusLabel(radiusLabel2, m2, mass2);
 
@@ -264,7 +256,6 @@ public class NewtonsCradle extends JFrame {
         double ang = Math.toRadians(deg);
 
         computedE = Math.sqrt(m1.e * m2.e);
-        updateELabel(m1, m2, mass1, mass2);
         updateRadiusLabel(radiusLabel1, m1, mass1);
         updateRadiusLabel(radiusLabel2, m2, mass2);
 
@@ -292,12 +283,6 @@ public class NewtonsCradle extends JFrame {
         for (GraphPanel gp : new GraphPanel[]{velGraph,xGraph,yGraph,keGraph,peGraph})
             gp.clear();
         canvas.repaint();
-    }
-
-    void updateELabel(Material m1, Material m2, double mass1, double mass2) {
-        eLabel.setText(String.format(
-                "Coefficient of Restitution e = %.3f  [Blue: %s %.0fg  |  Red: %s %.0fg]",
-                computedE, m1.name, mass1*1000, m2.name, mass2*1000));
     }
 
     void toggleSim() {
@@ -486,14 +471,16 @@ public class NewtonsCradle extends JFrame {
         final String title;
         List<Double> t1, s1, t2, s2;   // s1=RED(p2), s2=BLUE(p1)
         int showBalls = 0;              // 0=both 1=red 2=blue
+        boolean showRed = true, showBlue = true; // derived from showBalls each paint
 
         static final Color C_RED  = new Color(0xD32F2F);
         static final Color C_BLUE = new Color(0x1565C0);
 
         JPanel header;
-        JToggleButton btnBoth, btnRed, btnBlue;
+        JRadioButton btnBoth, btnRed, btnBlue;
         JButton expandBtn;
-        int mouseScreenX = -1;
+        int mouseScreenX = -1;   // raw pixel X from MouseEvent (before translate)
+        int mouseScreenY = -1;   // raw pixel Y from MouseEvent
 
         GraphPanel(String title) {
             this.title = title;
@@ -523,28 +510,33 @@ public class NewtonsCradle extends JFrame {
 
             JPanel row2=new JPanel(new FlowLayout(FlowLayout.LEFT,3,1));
             row2.setBackground(new Color(0xE0E0E0));
-            btnBoth=tog("Both",true); btnRed=tog("Red",false); btnBlue=tog("Blue",false);
-            ButtonGroup bg=new ButtonGroup(); bg.add(btnBoth); bg.add(btnRed); bg.add(btnBlue);
+            btnBoth=radio("Both",true);
+            btnRed =radio("Red", false);
+            btnBlue=radio("Blue",false);
+            ButtonGroup bg=new ButtonGroup();
+            bg.add(btnBoth); bg.add(btnRed); bg.add(btnBlue);
             JLabel sl=new JLabel("Show:"); sl.setFont(new Font("Arial",Font.PLAIN,9));
             row2.add(sl); row2.add(btnBoth); row2.add(btnRed); row2.add(btnBlue);
-            btnBoth.addActionListener(e->{showBalls=0;repaint();});
-            btnRed .addActionListener(e->{showBalls=1;repaint();});
-            btnBlue.addActionListener(e->{showBalls=2;repaint();});
+            btnBoth.addActionListener(e->{ showBalls=0; GraphPanel.this.repaint(); });
+            btnRed .addActionListener(e->{ showBalls=1; GraphPanel.this.repaint(); });
+            btnBlue.addActionListener(e->{ showBalls=2; GraphPanel.this.repaint(); });
             header.add(row2);
             add(header,BorderLayout.NORTH);
 
             addMouseMotionListener(new MouseMotionAdapter(){
-                public void mouseMoved(MouseEvent e){mouseScreenX=e.getX();repaint();}
+                public void mouseMoved(MouseEvent e){
+                    mouseScreenX=e.getX(); mouseScreenY=e.getY(); repaint();}
             });
             addMouseListener(new MouseAdapter(){
-                public void mouseExited(MouseEvent e){mouseScreenX=-1;repaint();}
+                public void mouseExited(MouseEvent e){mouseScreenX=-1;mouseScreenY=-1;repaint();}
             });
         }
 
-        JToggleButton tog(String txt,boolean sel){
-            JToggleButton b=new JToggleButton(txt,sel);
+        JRadioButton radio(String txt, boolean sel){
+            JRadioButton b=new JRadioButton(txt,sel);
             b.setFont(new Font("Arial",Font.PLAIN,9));
-            b.setMargin(new Insets(1,4,1,4)); b.setFocusPainted(false); return b;
+            b.setBackground(new Color(0xE0E0E0));
+            b.setFocusPainted(false); return b;
         }
 
         void clear(){t1=s1=t2=s2=null;repaint();}
@@ -561,20 +553,22 @@ public class NewtonsCradle extends JFrame {
             GraphPanel big=new GraphPanel(title){
                 public Dimension getPreferredSize(){return new Dimension(780,520);}
             };
-            syncTo(big);
-            javax.swing.Timer sync=new javax.swing.Timer(30,ev->{syncTo(big);big.repaint();});
+            // copy data and initial button state once
+            big.t1=t1; big.s1=s1; big.t2=t2; big.s2=s2;
+            big.showBalls=showBalls;
+            big.btnBoth.setSelected(showBalls==0);
+            big.btnRed .setSelected(showBalls==1);
+            big.btnBlue.setSelected(showBalls==2);
+            // sync only DATA every 30ms — never touch showBalls or buttons
+            javax.swing.Timer sync=new javax.swing.Timer(30,ev->{
+                big.t1=t1; big.s1=s1; big.t2=t2; big.s2=s2;
+                big.repaint();
+            });
             sync.start();
             dlg.addWindowListener(new WindowAdapter(){
                 public void windowClosing(WindowEvent e){sync.stop();}});
             dlg.add(big,BorderLayout.CENTER);
             dlg.pack(); dlg.setLocationRelativeTo(NewtonsCradle.this); dlg.setVisible(true);
-        }
-
-        void syncTo(GraphPanel big){
-            big.t1=t1; big.s1=s1; big.t2=t2; big.s2=s2; big.showBalls=showBalls;
-            if(showBalls==0)big.btnBoth.setSelected(true);
-            else if(showBalls==1)big.btnRed.setSelected(true);
-            else big.btnBlue.setSelected(true);
         }
 
         // ── Paint ─────────────────────────────────────────────────────────────
@@ -588,7 +582,16 @@ public class NewtonsCradle extends JFrame {
             int dH=H-hH; if(dH<20) return;
             g.translate(0,hH);
 
-            if(t1==null||t1.isEmpty()){
+            boolean showRed  = (showBalls == 0 || showBalls == 1);
+            boolean showBlue = (showBalls == 0 || showBalls == 2);
+            this.showRed=showRed; this.showBlue=showBlue;
+
+            // Use the time axis of whichever series is visible
+            List<Double> activeT = showRed ? t1 : t2;
+            if(activeT==null||activeT.isEmpty()){
+                activeT = showBlue ? t2 : null;
+            }
+            if(activeT==null||activeT.isEmpty()){
                 g.setColor(new Color(0xAAAAAA));
                 g.setFont(new Font("Arial",Font.ITALIC,10));
                 g.drawString("Press Play to see data",10,dH/2);
@@ -599,27 +602,28 @@ public class NewtonsCradle extends JFrame {
             int gw=W-pad-4, gh=dH-top-bot;
             if(gw<10||gh<10){g.translate(0,-hH);return;}
 
-            double tMin=t1.get(0), tMax=t1.get(t1.size()-1);
+            double tMin=activeT.get(0), tMax=activeT.get(activeT.size()-1);
             if(tMax-tMin<0.01) tMax=tMin+1;
             double vMin=Double.MAX_VALUE, vMax=-Double.MAX_VALUE;
-            if(showBalls!=2&&s1!=null)for(double v:s1){vMin=Math.min(vMin,v);vMax=Math.max(vMax,v);}
-            if(showBalls!=1&&s2!=null)for(double v:s2){vMin=Math.min(vMin,v);vMax=Math.max(vMax,v);}
+            if(showRed  && s1!=null) for(double v:s1){vMin=Math.min(vMin,v);vMax=Math.max(vMax,v);}
+            if(showBlue && s2!=null) for(double v:s2){vMin=Math.min(vMin,v);vMax=Math.max(vMax,v);}
+            if(vMin==Double.MAX_VALUE){vMin=0; vMax=1;}
             if(vMax-vMin<1e-9){vMin-=0.01;vMax+=0.01;}
 
             drawAxes(g,pad,top,gw,gh,tMin,tMax,vMin,vMax);
-            if(showBalls!=2) drawLine(g,t1,s1,tMin,tMax,vMin,vMax,pad,top,gw,gh,C_RED);
-            if(showBalls!=1) drawLine(g,t2,s2,tMin,tMax,vMin,vMax,pad,top,gw,gh,C_BLUE);
+            if(showRed)  drawLine(g,t1,s1,tMin,tMax,vMin,vMax,pad,top,gw,gh,C_RED);
+            if(showBlue) drawLine(g,t2,s2,tMin,tMax,vMin,vMax,pad,top,gw,gh,C_BLUE);
 
             // Legend
             g.setFont(new Font("Arial",Font.BOLD,9));
             int lx=pad+3, ly=top+3;
-            if(showBalls!=2){g.setColor(C_RED);g.fillRect(lx,ly,10,5);
-                g.setColor(Color.DARK_GRAY);g.drawString("Red",lx+13,ly+6);lx+=50;}
-            if(showBalls!=1){g.setColor(C_BLUE);g.fillRect(lx,ly,10,5);
-                g.setColor(Color.DARK_GRAY);g.drawString("Blue",lx+13,ly+6);}
+            if(showRed) {g.setColor(C_RED); g.fillRect(lx,ly,10,5);
+                g.setColor(Color.DARK_GRAY); g.drawString("Red",lx+13,ly+6); lx+=50;}
+            if(showBlue){g.setColor(C_BLUE);g.fillRect(lx,ly,10,5);
+                g.setColor(Color.DARK_GRAY); g.drawString("Blue",lx+13,ly+6);}
 
             // Hover crosshair
-            drawCrosshair(g,pad,top,gw,gh,tMin,tMax,vMin,vMax);
+            drawCrosshair(g,pad,top,gw,gh,tMin,tMax,vMin,vMax,hH);
             g.translate(0,-hH);
         }
 
@@ -638,26 +642,41 @@ public class NewtonsCradle extends JFrame {
             g.setFont(new Font("Arial",Font.PLAIN,8));
             FontMetrics fm=g.getFontMetrics();
 
-            // Y grid + labels
-            double yStep=niceStep(vMin,vMax,8);
-            double yStart=Math.ceil(vMin/yStep)*yStep;
+            // ── Y axis ────────────────────────────────────────────────────
+            axisScale = chooseScale(vMin, vMax);
+            double scaleFactor = Math.pow(10, axisScale); // e.g. 0.01 for scale=-2
+            // Work in scaled units for ticks so niceStep operates on readable numbers
+            double vMinS=vMin/scaleFactor, vMaxS=vMax/scaleFactor;
+            double yStepS=niceStep(vMinS,vMaxS,8);
+            double yStartS=Math.ceil(vMinS/yStepS)*yStepS;
+
             g.setColor(new Color(0xE2E2E2));
             g.setStroke(new BasicStroke(0.4f,BasicStroke.CAP_BUTT,BasicStroke.JOIN_BEVEL,0,new float[]{3},0));
-            for(double v=yStart;v<=vMax+yStep*0.01;v+=yStep){
-                int py=top+gh-(int)((v-vMin)/(vMax-vMin)*gh);
+            for(double vs=yStartS;vs<=vMaxS+yStepS*0.01;vs+=yStepS){
+                double vRaw=vs*scaleFactor;
+                int py=top+gh-(int)((vRaw-vMin)/(vMax-vMin)*gh);
                 if(py<top||py>top+gh) continue;
                 g.drawLine(pad,py,pad+gw,py);
             }
             g.setStroke(new BasicStroke(1f));
             g.setColor(new Color(0xAAAAAA)); g.drawRect(pad,top,gw,gh);
-            for(double v=yStart;v<=vMax+yStep*0.01;v+=yStep){
-                int py=top+gh-(int)((v-vMin)/(vMax-vMin)*gh);
+            for(double vs=yStartS;vs<=vMaxS+yStepS*0.01;vs+=yStepS){
+                double vRaw=vs*scaleFactor;
+                int py=top+gh-(int)((vRaw-vMin)/(vMax-vMin)*gh);
                 if(py<top-4||py>top+gh+4) continue;
                 g.setColor(new Color(0x888888)); g.setStroke(new BasicStroke(1f));
                 g.drawLine(pad-3,py,pad,py);
-                String s=fmtVal(v);
+                String s=fmtScaled(vs);
                 g.setColor(new Color(0x333333));
                 g.drawString(s,pad-4-fm.stringWidth(s),py+3);
+            }
+            // Unit prefix label at top-left of plot
+            if(axisScale!=0){
+                String prefix = axisScale==-2 ? "×10⁻²" : axisScale==-3 ? "×10⁻³" : "";
+                g.setFont(new Font("Arial",Font.BOLD,8));
+                g.setColor(new Color(0x0055AA));
+                g.drawString(prefix, 1, top+8);
+                g.setFont(new Font("Arial",Font.PLAIN,8));
             }
 
             // X grid + labels
@@ -683,15 +702,49 @@ public class NewtonsCradle extends JFrame {
             g.drawString("t(s)",pad+gw+2,top+gh+12);
         }
 
-        String fmtVal(double v){
+        /**
+         * Scale factor for axis: determined once per paint from vMax magnitude.
+         * 0 = raw, -2 = ×10^-2 (cm), -3 = ×10^-3 (mm)
+         */
+        int axisScale = 0;
+
+        /** Pick axis scale exponent based on the max absolute value in the data. */
+        int chooseScale(double vMin, double vMax){
+            double maxAbs=Math.max(Math.abs(vMin),Math.abs(vMax));
+            if(maxAbs==0) return 0;
+            if(maxAbs<0.005) return -3;   // show as ×10⁻³
+            if(maxAbs<0.05)  return -2;   // show as ×10⁻²
+            return 0;                     // show raw
+        }
+
+        /** Format a value already divided by the scale for axis labels (compact) */
+        String fmtScaled(double v){
             double a=Math.abs(v);
-            if(a==0) return "0";
-            if(a<0.001) return String.format("%.2e",v);
-            if(a<0.01)  return String.format("%.4f",v);
-            if(a<0.1)   return String.format("%.3f",v);
-            if(a<10)    return String.format("%.3f",v);
-            if(a<100)   return String.format("%.2f",v);
-            return String.format("%.1f",v);
+            if(a<1e-12) return "0";
+            if(a<0.1)   return String.format("%.2f",v);
+            if(a<10)    return String.format("%.1f",v);
+            if(a<100)   return String.format("%.0f",v);
+            return String.format("%.0f",v);
+        }
+
+        /** Format value in scientific notation: 1.50×10⁻² style */
+        String fmtVal(double v){
+            if(Math.abs(v)<1e-12) return "0";
+            int exp = (int)Math.floor(Math.log10(Math.abs(v)));
+            double mantissa = v / Math.pow(10, exp);
+            // superscript exponent using unicode
+            String expStr = expSuperscript(exp);
+            return String.format("%.2f×10%s", mantissa, expStr);
+        }
+
+        String expSuperscript(int exp){
+            // Build superscript string for exponent (handles negatives and multi-digit)
+            String[] sup = {"⁰","¹","²","³","⁴","⁵","⁶","⁷","⁸","⁹"};
+            StringBuilder sb = new StringBuilder();
+            if(exp<0){ sb.append("⁻"); exp=-exp; }
+            for(char c : Integer.toString(exp).toCharArray())
+                sb.append(sup[c-'0']);
+            return sb.toString();
         }
 
         void drawLine(Graphics2D g,List<Double> ts,List<Double> vs,
@@ -723,12 +776,19 @@ public class NewtonsCradle extends JFrame {
         }
 
         void drawCrosshair(Graphics2D g,int pad,int top,int gw,int gh,
-                           double tMin,double tMax,double vMin,double vMax){
+                           double tMin,double tMax,double vMin,double vMax,int hH){
             if(mouseScreenX<0) return;
+            // mouseScreenX/Y are raw component coords; the Graphics has been translated by hH
+            // so we subtract hH from Y to get the position in translated space.
             int mx=mouseScreenX;
+            int myTranslated=mouseScreenY-hH;  // Y in translated (plot) space
             if(mx<pad||mx>pad+gw) return;
+            if(myTranslated<top||myTranslated>top+gh) return;
+
+            // Compute time from pixel X
             double t=tMin+(double)(mx-pad)/gw*(tMax-tMin);
 
+            // Vertical line
             g.setColor(new Color(60,60,60,120));
             g.setStroke(new BasicStroke(1f,BasicStroke.CAP_BUTT,BasicStroke.JOIN_BEVEL,
                     0,new float[]{4,3},0));
@@ -739,28 +799,36 @@ public class NewtonsCradle extends JFrame {
             int ty=top+14;
 
             for(int s=0;s<2;s++){
-                if(s==0&&showBalls==2) continue;
-                if(s==1&&showBalls==1) continue;
-                List<Double> ts2=s==0?t1:t2, vs=s==0?s1:s2;
+                boolean isRed=(s==0);
+                if(isRed  && !showRed)  continue;
+                if(!isRed && !showBlue) continue;
+                List<Double> ts2=isRed?t1:t2, vs=isRed?s1:s2;
                 Color c=s==0?C_RED:C_BLUE;
                 String label=s==0?"Red":"Blue";
                 if(ts2==null||vs==null||ts2.size()<2) continue;
+
+                // Interpolate: find the value at time t by binary-searching
                 double val=interpolate(ts2,vs,t);
+
+                // Compute the expected pixel Y for this value
                 int py=top+gh-(int)((val-vMin)/(vMax-vMin)*gh);
                 py=Math.max(top+2,Math.min(top+gh-2,py));
 
+                // Horizontal dashed line at the interpolated Y
                 g.setColor(new Color(c.getRed(),c.getGreen(),c.getBlue(),70));
                 g.setStroke(new BasicStroke(0.8f,BasicStroke.CAP_BUTT,BasicStroke.JOIN_BEVEL,
                         0,new float[]{3,3},0));
                 g.drawLine(pad,py,mx,py);
 
+                // Dot on curve
                 g.setColor(c); g.setStroke(new BasicStroke(1f));
                 g.fillOval(mx-4,py-4,9,9);
 
-                String tip=String.format("%s  (%.3f, %s)",label,t,fmtVal(val));
+                // Tooltip: show actual time and actual interpolated value
+                String tip=String.format("%s  t=%.3f  val=%s",label,t,fmtVal(val));
                 int bw=fm.stringWidth(tip)+8, bh=13;
                 int bx=mx+6; if(bx+bw>pad+gw) bx=mx-bw-4;
-                g.setColor(new Color(255,255,255,220));
+                g.setColor(new Color(255,255,255,225));
                 g.fillRoundRect(bx,ty-10,bw,bh,4,4);
                 g.setColor(new Color(0x222222));
                 g.drawRoundRect(bx,ty-10,bw,bh,4,4);
