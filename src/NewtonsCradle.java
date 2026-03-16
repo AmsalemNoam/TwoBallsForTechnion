@@ -841,4 +841,4 @@ public class NewtonsCradle extends JFrame {
         catch(Exception ignored){}
         SwingUtilities.invokeLater(NewtonsCradle::new);
     }
-}
+}//checking
